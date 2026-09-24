@@ -1,0 +1,30 @@
+{
+  "id": 3572,
+  "season_number": 1,
+  "episodes": [
+    {
+      "episode_number": 1,
+      "name": "Pilot",
+      "overview": "O diagnóstico muda tudo.",
+      "air_date": "2008-01-20",
+      "runtime": 58,
+      "still_path": "/ydlY3iPfeOAvu8gVqrxPoMvzNCn.jpg"
+    },
+    {
+      "episode_number": 2,
+      "name": "Cat's in the Bag...",
+      "overview": "É preciso limpar a bagunça.",
+      "air_date": "2008-01-27",
+      "runtime": 48,
+      "still_path": "/we3REi2zvWEA1bRwn9nrHccvyM4.jpg"
+    },
+    {
+      "episode_number": 3,
+      "name": "...And the Bag's in the River",
+      "overview": "Uma decisão difícil.",
+      "air_date": "2008-02-10",
+      "runtime": 48,
+      "still_path": null
+    }
+  ]
+}

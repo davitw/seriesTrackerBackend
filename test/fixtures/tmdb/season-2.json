@@ -1,0 +1,38 @@
+{
+  "id": 3573,
+  "season_number": 2,
+  "episodes": [
+    {
+      "episode_number": 1,
+      "name": "Seven Thirty-Seven",
+      "overview": "Consequências.",
+      "air_date": "2009-03-08",
+      "runtime": 47,
+      "still_path": null
+    },
+    {
+      "episode_number": 2,
+      "name": "Grilled",
+      "overview": "Um encontro tenso.",
+      "air_date": "2009-03-15",
+      "runtime": 48,
+      "still_path": null
+    },
+    {
+      "episode_number": 3,
+      "name": "Bit by a Dead Bee",
+      "overview": "Uma história precisa ser sustentada.",
+      "air_date": null,
+      "runtime": null,
+      "still_path": null
+    },
+    {
+      "episode_number": 4,
+      "name": "Down",
+      "overview": "Episódio ainda não liberado.",
+      "air_date": "2099-01-01",
+      "runtime": null,
+      "still_path": null
+    }
+  ]
+}

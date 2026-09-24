@@ -1,0 +1,138 @@
+// Schema do SeriesTracker. As restrições que o Prisma não expressa — índice único
+// funcional em lower(email), Row Level Security com FORCE, políticas por operação e as
+// funções SECURITY DEFINER de autenticação — vivem em prisma/migrations/*/migration.sql.
+// Ver specs/001-series-tracking/data-model.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Conta da pessoa. Dona de todo dado de perfil e progresso.
+model User {
+  id           String   @id @db.Uuid
+  email        String
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  refreshTokens       RefreshToken[]
+  userSeries          UserSeries[]
+  userEpisodeProgress UserEpisodeProgress[]
+
+  @@map("users")
+}
+
+/// Sessão renovável. Guarda apenas o hash do valor entregue ao cliente.
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replaced RefreshToken?  @relation("RefreshRotation", fields: [replacedBy], references: [id], onDelete: SetNull)
+  rotates  RefreshToken[] @relation("RefreshRotation")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// Catálogo global de séries, espelho local do provedor externo. Não contém dado de usuário.
+model Series {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  externalId    Int       @unique @map("external_id")
+  title         String
+  originalTitle String?   @map("original_title")
+  firstAirDate  DateTime? @map("first_air_date") @db.Date
+  overview      String?
+  posterPath    String?   @map("poster_path")
+  status        String?
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  seasons   Season[]
+  episodes  Episode[]
+  userSeriess UserSeries[]
+
+  @@map("series")
+}
+
+/// Temporada. `episodeCount` é metadado informativo do provedor, nunca base do progresso.
+model Season {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seriesId     String    @map("series_id") @db.Uuid
+  seasonNumber Int       @map("season_number")
+  name         String?
+  airDate      DateTime? @map("air_date") @db.Date
+  episodeCount Int?      @map("episode_count")
+  posterPath   String?   @map("poster_path")
+
+  series   Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodes Episode[]
+
+  @@unique([seriesId, seasonNumber])
+  @@index([seriesId, seasonNumber])
+  @@map("seasons")
+}
+
+/// Unidade assistível. `airDate` nulo ou futuro significa não liberado.
+model Episode {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seriesId      String    @map("series_id") @db.Uuid
+  seasonId      String    @map("season_id") @db.Uuid
+  seasonNumber  Int       @map("season_number")
+  episodeNumber Int       @map("episode_number")
+  title         String?
+  overview      String?
+  airDate       DateTime? @map("air_date") @db.Date
+  runtime       Int?
+  stillPath     String?   @map("still_path")
+
+  series      Series                @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  season      Season                @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  progress    UserEpisodeProgress[]
+
+  @@unique([seriesId, seasonNumber, episodeNumber])
+  @@index([seriesId, seasonNumber, episodeNumber])
+  @@index([airDate])
+  @@map("episodes")
+}
+
+/// Série acompanhada por uma conta. `lastWatchedAt` ordena as acessadas recentemente.
+model UserSeries {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  seriesId      String    @map("series_id") @db.Uuid
+  addedAt       DateTime  @default(now()) @map("added_at") @db.Timestamptz(6)
+  lastWatchedAt DateTime? @map("last_watched_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seriesId])
+  @@index([userId, lastWatchedAt(sort: Desc), addedAt(sort: Desc)])
+  @@map("user_series")
+}
+
+/// Episódio assistido. A presença da linha É o estado assistido — não há coluna de contador.
+model UserEpisodeProgress {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  episodeId String   @map("episode_id") @db.Uuid
+  watchedAt DateTime @map("watched_at") @db.Timestamptz(6)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, episodeId])
+  @@index([userId, episodeId])
+  @@index([episodeId])
+  @@map("user_episode_progress")
+}

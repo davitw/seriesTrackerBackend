@@ -1,0 +1,686 @@
+openapi: 3.0.3
+info:
+  title: SeriesTracker Backend API
+  version: 1.0.0
+  description: >
+    API que alimenta o aplicativo SeriesTracker. Cobre autenticação por e-mail e senha (JWT),
+    busca de séries em catálogo externo, perfil de séries do usuário, marcação de episódios
+    assistidos e progresso por temporada.
+
+    Regras transversais:
+    - Todas as operações, exceto `/v1/auth/*`, exigem `Authorization: Bearer <accessToken>`.
+    - Todo dado de perfil e progresso é acessível apenas ao usuário dono. Recurso de outro
+      usuário responde `404` (nunca `403`).
+    - Erros usam código estável em `error.code`; catálogo em `contracts/errors.md`.
+    - Datas de calendário (`airDate`, `firstAirDate`) são `YYYY-MM-DD` ou `null`.
+    - Instantes (`createdAt`, `watchedAt`, `addedAt`, `lastWatchedAt`) são ISO 8601 em UTC.
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local
+
+tags:
+  - name: auth
+  - name: account
+  - name: catalog
+  - name: library
+  - name: tracking
+
+paths:
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Criar conta com e-mail e senha
+      description: FR-001. Exige senha com no mínimo 6 caracteres e e-mail ainda não cadastrado.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+      responses:
+        '201':
+          description: Conta criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '409':
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EMAIL_ALREADY_REGISTERED
+                  message: Este e-mail já está cadastrado.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          description: >
+            Excesso de requisições nesta origem (FR-021). A limitação existe porque o
+            cadastro revela, por decisão do produto, que um e-mail já tem conta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: RATE_LIMITED
+                  message: Muitas tentativas. Tente novamente em instantes.
+
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Entrar com e-mail e senha
+      description: >
+        FR-002 e FR-003. Resposta idêntica para e-mail inexistente e senha incorreta, sem revelar
+        se o e-mail existe.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVALID_CREDENTIALS
+                  message: E-mail ou senha inválidos.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          description: Excesso de requisições nesta origem (FR-021)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: RATE_LIMITED
+                  message: Muitas tentativas. Tente novamente em instantes.
+
+  /v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Renovar a sessão
+      description: >
+        Troca um refresh token válido por um novo par de tokens (rotação). O token apresentado é
+        revogado. Apresentar um token já revogado revoga a família e responde 401.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              additionalProperties: false
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Sessão renovada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          description: Refresh token inválido, expirado ou revogado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVALID_REFRESH_TOKEN
+                  message: Sessão expirada. Entre novamente.
+
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Sair da conta
+      description: FR-004. Revoga o refresh token apresentado. Idempotente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              additionalProperties: false
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '204':
+          description: Sessão encerrada
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/me:
+    get:
+      tags: [account]
+      summary: Consultar o próprio perfil
+      responses:
+        '200':
+          description: Perfil do usuário autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [account]
+      summary: Encerrar a conta
+      description: >
+        FR-020. Remove a conta e, em cascata, perfil, progresso e sessões. Os dados deixam de
+        existir; não há desfazer.
+      responses:
+        '204':
+          description: Conta encerrada
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/catalog/series/search:
+    get:
+      tags: [catalog]
+      summary: Buscar séries no catálogo externo
+      description: >
+        FR-006 e FR-018. Consulta o catálogo de referência por título. Com o catálogo indisponível
+        responde 503, sem afetar as demais operações.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          description: Trecho do título
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 10
+      responses:
+        '200':
+          description: Correspondências encontradas (lista pode ser vazia)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CatalogSeries'
+        '503':
+          description: Catálogo externo indisponível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: CATALOG_UNAVAILABLE
+                  message: A busca está indisponível no momento. Suas séries continuam acessíveis.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /v1/series:
+    get:
+      tags: [library]
+      summary: Listar as séries do meu perfil
+      description: >
+        FR-008. Ordena pelas acessadas mais recentemente (`lastWatchedAt`, depois `addedAt`). Cada
+        item traz o resumo de progresso por temporada, sempre derivado no momento da leitura.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Perfil do usuário
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProfileSeries'
+                  total:
+                    type: integer
+                    description: Total de séries no perfil
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [library]
+      summary: Adicionar uma série ao meu perfil
+      description: >
+        FR-007. Idempotente: repetir a chamada não cria duplicata, não altera o progresso e indica
+        `alreadyInProfile: true`. Carrega os metadados do catálogo se ainda não estiverem em cache.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalId]
+              additionalProperties: false
+              properties:
+                externalId:
+                  type: integer
+                  description: Identificador da série no catálogo externo, obtido na busca
+      responses:
+        '201':
+          description: Série adicionada ao perfil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileSeries'
+        '200':
+          description: A série já estava no perfil (nenhuma alteração)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileSeries'
+        '404':
+          description: Série inexistente no catálogo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: SERIES_NOT_FOUND
+                  message: Série não encontrada no catálogo.
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '503':
+          description: Catálogo externo indisponível e série não está em cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/series/{seriesId}:
+    parameters:
+      - $ref: '#/components/parameters/SeriesId'
+    get:
+      tags: [library]
+      summary: Detalhes da série com episódios e progresso
+      description: >
+        FR-010, FR-014 e FR-015. Episódios agrupados por temporada e em ordem, com estado de
+        assistido por episódio, progresso da temporada e próxima liberação. Funciona com o catálogo
+        externo indisponível, desde que a série já esteja em cache.
+      responses:
+        '200':
+          description: Detalhes da série
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesDetail'
+        '404':
+          description: Série não está no perfil deste usuário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: SERIES_NOT_IN_PROFILE
+                  message: Série não encontrada no seu perfil.
+    delete:
+      tags: [library]
+      summary: Remover uma série do meu perfil
+      description: >
+        FR-009. Remove o vínculo e descarta o progresso desta série para este usuário, na mesma
+        operação. Readicionar recomeça do zero.
+      responses:
+        '204':
+          description: Série removida do perfil
+        '404':
+          description: Série não está no perfil deste usuário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/series/{seriesId}/episodes/{episodeId}/watched:
+    parameters:
+      - $ref: '#/components/parameters/SeriesId'
+      - name: episodeId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags: [tracking]
+      summary: Marcar episódio como assistido
+      description: >
+        FR-011 e FR-013. Idempotente: repetir mantém o primeiro `watchedAt`. Recusa episódio com
+        estreia futura ou sem data conhecida (422), informando `airDate` quando houver.
+      responses:
+        '200':
+          description: Episódio marcado (ou já estava marcado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeProgress'
+        '404':
+          description: Série fora do perfil ou episódio não pertence à série
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Episódio ainda não liberado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: EPISODE_NOT_AIRED
+                  message: Este episódio ainda não foi liberado.
+                  details:
+                    airDate: '2026-10-04'
+    delete:
+      tags: [tracking]
+      summary: Desmarcar episódio assistido
+      description: FR-012. Idempotente; ausência de marcação responde 204.
+      responses:
+        '204':
+          description: Episódio desmarcado
+        '404':
+          description: Série fora do perfil ou episódio não pertence à série
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  parameters:
+    SeriesId:
+      name: seriesId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Unauthorized:
+      description: Sessão ausente, inválida ou expirada
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: UNAUTHENTICATED
+              message: Sessão inválida ou expirada. Entre novamente.
+    ValidationError:
+      description: Dados de entrada inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: Dados inválidos.
+              details:
+                fields:
+                  password: A senha deve ter no mínimo 6 caracteres.
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Código estável (ver contracts/errors.md)
+            message:
+              type: string
+              description: Mensagem legível, sem dado sensível
+            details:
+              type: object
+              additionalProperties: true
+              description: Contexto adicional do erro, quando aplicável (por exemplo `airDate`)
+
+    AuthSession:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Validade do access token em segundos
+
+    UserProfile:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        createdAt:
+          type: string
+          format: date-time
+
+    CatalogSeries:
+      type: object
+      required: [externalId, title]
+      properties:
+        externalId:
+          type: integer
+        title:
+          type: string
+        firstAirDate:
+          type: string
+          format: date
+          nullable: true
+          description: Ano/título de estreia, usado para desambiguar homônimas
+        overview:
+          type: string
+          nullable: true
+        posterPath:
+          type: string
+          nullable: true
+
+    SeasonProgress:
+      type: object
+      required: [seasonNumber, totalEpisodes, airedEpisodes, watchedEpisodes, remainingAired, notAired]
+      properties:
+        seasonNumber:
+          type: integer
+        totalEpisodes:
+          type: integer
+        airedEpisodes:
+          type: integer
+        watchedEpisodes:
+          type: integer
+        remainingAired:
+          type: integer
+        notAired:
+          type: integer
+        nextEpisodeNumber:
+          type: integer
+          nullable: true
+        nextAirDate:
+          type: string
+          format: date
+          nullable: true
+
+    ProfileSeries:
+      type: object
+      required: [id, title, addedAt, seasons, overall]
+      properties:
+        id:
+          type: string
+          format: uuid
+        externalId:
+          type: integer
+        title:
+          type: string
+        posterPath:
+          type: string
+          nullable: true
+        addedAt:
+          type: string
+          format: date-time
+        lastWatchedAt:
+          type: string
+          format: date-time
+          nullable: true
+        alreadyInProfile:
+          type: boolean
+          description: Presente apenas na resposta de adição (FR-007)
+        overall:
+          $ref: '#/components/schemas/SeasonProgress'
+        seasons:
+          type: array
+          items:
+            $ref: '#/components/schemas/SeasonProgress'
+
+    EpisodeProgress:
+      type: object
+      required: [episodeId, seasonNumber, episodeNumber, watched, watchedAt]
+      properties:
+        episodeId:
+          type: string
+          format: uuid
+        seasonNumber:
+          type: integer
+        episodeNumber:
+          type: integer
+        watched:
+          type: boolean
+        watchedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Instante da marcação; preservado em marcações repetidas
+        airDate:
+          type: string
+          format: date
+          nullable: true
+        seasonProgress:
+          $ref: '#/components/schemas/SeasonProgress'
+
+    SeriesDetail:
+      type: object
+      required: [id, title, seasons]
+      properties:
+        id:
+          type: string
+          format: uuid
+        externalId:
+          type: integer
+        title:
+          type: string
+        overview:
+          type: string
+          nullable: true
+        posterPath:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        addedAt:
+          type: string
+          format: date-time
+        lastWatchedAt:
+          type: string
+          format: date-time
+          nullable: true
+        overall:
+          $ref: '#/components/schemas/SeasonProgress'
+        seasons:
+          type: array
+          items:
+            type: object
+            required: [seasonNumber, progress, episodes]
+            properties:
+              seasonNumber:
+                type: integer
+              name:
+                type: string
+                nullable: true
+              airDate:
+                type: string
+                format: date
+                nullable: true
+              progress:
+                $ref: '#/components/schemas/SeasonProgress'
+              episodes:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EpisodeProgress'

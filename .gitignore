@@ -1,0 +1,36 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Ambiente — nunca versionar segredos
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Cobertura
+coverage/
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Cluster PostgreSQL local de desenvolvimento (não versionar)
+.pgdata/
+
+# Cache de engines do Prisma
+.prisma-cache/
+
+# Estado local da ferramenta de desenvolvimento (gerado, não é do projeto)
+.codewhale/

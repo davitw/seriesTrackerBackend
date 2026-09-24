@@ -1,0 +1,17 @@
+[
+  {
+    "query": "breaking",
+    "expectedTitles": ["Breaking Bad"],
+    "note": "Título exato conhecido; o mapeamento precisa preservar o identificador do provedor."
+  },
+  {
+    "query": "breaking bad",
+    "expectedTitles": ["Breaking Bad"],
+    "note": "Busca com título completo."
+  },
+  {
+    "query": "titulo que nao existe em lugar nenhum",
+    "expectedTitles": [],
+    "note": "Ausência de resultado precisa ser lista vazia, não erro."
+  }
+]
