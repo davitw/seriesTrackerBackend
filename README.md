@@ -64,6 +64,21 @@ node scripts/verify-cloud.mjs                # confirma RLS, escopo e pooler
 escopo nenhuma linha é visível, que o `SET LOCAL` **sobrevive ao pooler** e que um escopo
 diferente não enxerga a conta — e remove a conta no fim.
 
+### 5. Privilégios de `anon` e `authenticated`
+
+O Supabase configura `ALTER DEFAULT PRIVILEGES` no schema `public`: toda tabela criada ali
+nasce com privilégios para `anon`, `authenticated` e `service_role`. As duas primeiras são
+alcançáveis pelo PostgREST com a **anon key**, que é distribuída a clientes e tratada como
+pública.
+
+A migração `20260924150000_revoke_anon_privileges` revoga esses privilégios e altera os padrões
+— a segunda parte é o que impede a próxima tabela de nascer exposta. Nada disso toca a role da
+aplicação.
+
+`service_role` mantém o acesso, por decisão consciente: ela tem `BYPASSRLS` e revogar dela
+também tiraria a visibilidade das tabelas no Table Editor do painel. Se preferir o acesso
+mínimo também ali, acrescente `service_role` à lista daquela migração.
+
 ## Testes
 
 ```bash
