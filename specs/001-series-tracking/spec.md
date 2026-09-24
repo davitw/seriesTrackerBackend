@@ -51,6 +51,9 @@ sozinha.
    ser aceito e uma nova entrada é exigida.
 5. **Given** um cadastro, **When** o e-mail já pertence a outra conta ou a senha tem menos de 6
    caracteres, **Then** o cadastro é recusado com indicação do campo em falta.
+6. **Given** uma pessoa autenticada, **When** ela encerra a própria conta, **Then** o acesso em uso
+   deixa de valer, o login com as mesmas credenciais falha, e perfil, progresso e sessões deixam de
+   existir.
 
 ---
 
@@ -137,8 +140,8 @@ marcar um episódio com estreia futura e confirmar a recusa com a data informada
   episódios disponíveis, sem contagem enganosa.
 - **Série retomada após hiato/cancelamento**: novas temporadas ou episódios passam a aparecer sem
   ação da pessoa; datas já passadas deixam de ser tratadas como "a liberar".
-- **Remover e readicionar uma série do perfil**: ao remover, o progresso daquela série é descartado;
-  readicionar começa do zero.
+- **Remover e readicionar uma série do perfil**: o descarte do progresso ao remover é o
+  comportamento definido em FR-009.
 - **Acesso de outra pessoa aos meus dados**: qualquer tentativa de ler ou alterar dados de outro
   usuário, mesmo conhecendo os identificadores, é recusada como inexistente.
 - **Sessão expirada durante o uso**: a operação é recusada de forma que o aplicativo possa conduzir
@@ -192,7 +195,9 @@ marcar um episódio com estreia futura e confirmar a recusa com a data informada
   faltantes.
 - **FR-016**: O sistema MUST garantir que todo dado de usuário seja acessível apenas para a pessoa
   autenticada dona dele, em leitura e em escrita, inclusive quando o identificador de outro usuário
-  é conhecido. Tentativas de acesso cruzado MUST ser tratadas como recurso inexistente.
+  é conhecido. Tentativas de acesso cruzado MUST ser tratadas como recurso inexistente. A garantia
+  MUST valer também na camada de persistência, e não apenas no serviço: um erro na aplicação não
+  pode expor dado de outra conta.
 - **FR-017**: O sistema MUST armazenar localmente os metadados de séries, temporadas e episódios
   obtidos do catálogo, de forma que as séries já acompanhadas permaneçam consultáveis sem nova
   consulta ao catálogo externo.
@@ -202,7 +207,7 @@ marcar um episódio com estreia futura e confirmar a recusa com a data informada
   inicial de uma série).
 - **FR-019**: O sistema MUST retornar erros com indicação estável e distinguível da causa (dado
   inválido, não autorizado, não encontrado, conflito, indisponibilidade de dependência externa), sem
-  apresentar falha como sucesso.
+  apresentar falha como sucesso. Os códigos estáveis estão catalogados em `contracts/errors.md`.
 - **FR-020**: O sistema MUST permitir que a pessoa encerre a própria conta, tornando inacessíveis os
   dados pessoais e de progresso associados.
 - **FR-021**: O sistema MUST limitar a taxa de requisições por origem nas rotas públicas de
@@ -240,8 +245,9 @@ marcar um episódio com estreia futura e confirmar a recusa com a data informada
 - **SC-004**: Em 100% das consultas de progresso, o número de assistidos é exatamente igual ao
   número de episódios marcados daquela temporada, e assistidos + faltantes = total de episódios
   liberados da temporada.
-- **SC-005**: 95% das buscas por títulos existentes no catálogo retornam o título correto entre as 5
-  primeiras correspondências.
+- **SC-005**: 100% das buscas por títulos existentes devolvem as correspondências recebidas do
+  provedor sem perda nem embaralhamento — identificador, título e ano de estreia preservados. O
+  **ranqueamento é do provedor externo** e não é garantido por este serviço.
 - **SC-006**: Em 100% das tentativas de acessar dado de outra conta, mesmo com identificadores
   corretos, o dado não é exposto nem alterado.
 - **SC-007**: Com o catálogo externo indisponível, 100% das operações de listar perfil, consultar
@@ -282,7 +288,8 @@ marcar um episódio com estreia futura e confirmar a recusa com a data informada
   episódios, e é sempre derivado dessas marcações no momento da leitura.
 - **Episódios não liberados não são marcáveis**, e a data de liberação é a informação apresentada no
   lugar da marcação.
-- **Remover uma série do perfil descarta o progresso daquela série**; readicionar recomeça do zero.
+- **Remover uma série do perfil**: a regra de descarte do progresso é a de FR-009, não uma premissa
+  à parte.
 - **Dados de data/hora são registrados de forma normalizada** e apresentados no fuso da pessoa; a
   data de estreia é um dia de calendário, sem horário.
 - **Encerramento de conta incluído no MVP**: a pessoa pode encerrar a própria conta e os dados

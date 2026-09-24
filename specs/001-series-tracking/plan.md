@@ -43,7 +43,8 @@ unidade e de adapter não tocam a rede — fixtures gravadas do TMDB
 
 **Project Type**: web-service (backend único, sem frontend neste repositório)
 
-**Performance Goals**: p95 abaixo de 500 ms para listagem de perfil e consulta de progresso; p95
+**Performance Goals**: refinamento mensurável de SC-009, que pede leitura abaixo de 1 segundo no
+perfil de escala descrito nele: p95 abaixo de 500 ms para listagem de perfil e consulta de progresso; p95
 abaixo de 800 ms para marcação de episódio (inclui transação escopada); busca no catálogo p95
 abaixo de 1,2 s em cache miss e abaixo de 100 ms em cache hit. Meta de escala: 1.000 contas ativas,
 50 séries por conta, 5.000 episódios por série (SC-009)
