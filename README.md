@@ -15,14 +15,102 @@ Plano e especificação completos: [`specs/001-series-tracking/`](specs/001-seri
 - Instância PostgreSQL 15+ acessível
 - Credencial da API do TMDB (para busca e carga de metadados)
 
-## Setup
+## Rodar localmente
+
+O serviço precisa de um PostgreSQL 15+ e de **duas roles** — uma privilegiada para as migrações e
+uma sem privilégio para a aplicação. Se você já tem o banco no Supabase configurado, use as
+variáveis dele e pule o passo 3.
+
+### 1. Dependências
 
 ```bash
 npm ci
-cp .env.example .env          # preencha DATABASE_URL, JWT_ACCESS_SECRET e TMDB_API_KEY
-npx prisma migrate deploy     # aplica migrações, RLS e funções de autenticação
-npm run start:dev             # API em http://localhost:3000, OpenAPI em /docs
 ```
+
+### 2. Variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Preencha o `.env`:
+
+| Variável | O que é |
+|----------|---------|
+| `DATABASE_URL` | conexão da **aplicação** — com o usuário `series_tracker_app` |
+| `MIGRATE_DATABASE_URL` | conexão **privilegiada**, usada só pelas migrações |
+| `DATABASE_URL_TEST` | banco usado pelos testes de integração |
+| `TEST_MIGRATE_DATABASE_URL` | idem, privilegiada |
+| `JWT_ACCESS_SECRET` | segredo de assinatura — gere com `openssl rand -base64 48` |
+| `TMDB_API_KEY` | Read Access Token **v4** do TMDB (o valor longo que começa com `ey`) |
+
+> **Não inclua `?schema=public` nas URLs.** O Prisma usa `public` por padrão, e o parâmetro faz o
+> `psql` recusar a mesma string — o que quebraria o passo 5 e o `scripts/verify-cloud.mjs`.
+
+### 3. Criar a role da aplicação (só na primeira vez)
+
+```bash
+psql "$MIGRATE_DATABASE_URL" \
+  -c "create role series_tracker_app login password '<senha-forte>' nosuperuser nobypassrls nocreatedb;"
+```
+
+`nosuperuser` e `nobypassrls` não são detalhe de estilo: são o que faz a Row Level Security valer
+como garantia, e não apenas como intenção.
+
+### 4. Aplicar as migrações
+
+```bash
+npx prisma migrate deploy          # lê MIGRATE_DATABASE_URL
+```
+
+### 5. Conceder os privilégios à role da aplicação
+
+```bash
+psql "$MIGRATE_DATABASE_URL" -f scripts/setup-db.sql
+```
+
+**Não pule este passo.** Sem ele a API sobe normalmente, mas toda consulta falha com
+`permission denied for table …` — porque a aplicação roda com uma role que só recebe o que este
+script concede.
+
+### 6. Subir o servidor
+
+```bash
+npm run start:dev
+```
+
+- API: <http://localhost:3000>
+- Swagger: <http://localhost:3000/docs>
+- OpenAPI em JSON: <http://localhost:3000/docs-json>
+
+O `start:dev` recompila a cada alteração. Para uma execução sem watch: `npm start`.
+
+### 7. Conferir que funcionou
+
+```bash
+curl -s -X POST localhost:3000/v1/auth/register \
+  -H 'content-type: application/json' \
+  -d '{"email":"teste@example.com","password":"segredo123"}'
+```
+
+Espera `201` com o `id` da conta criada. Para conferir o banco — RLS ativa, escopo de sessão e
+as funções de autenticação — rode `node scripts/verify-cloud.mjs`, que funciona contra qualquer
+banco, local inclusive.
+
+> **Se o login começar a responder `429`:** é a limitação de taxa das rotas de autenticação
+> (padrão: 10 requisições por minuto e por origem). Ajuste `AUTH_RATE_LIMIT_MAX` no `.env` enquanto
+> estiver testando.
+
+## Usar a API pelo Swagger
+
+1. Abra <http://localhost:3000/docs>
+2. `POST /v1/auth/register` — crie uma conta
+3. `POST /v1/auth/login` — copie o `accessToken` da resposta
+4. Clique em **Authorize** (o cadeado, no topo da página) e cole o token
+5. Os endpoints autenticados passam a funcionar direto na página
+
+Cada endpoint documenta o corpo esperado, os parâmetros, o formato da resposta e os códigos de
+erro — inclusive os de domínio, como `SERIES_NOT_IN_PROFILE` e `EPISODE_NOT_AIRED`.
 
 ## Subir em banco gerenciado (Supabase)
 
