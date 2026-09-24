@@ -38,7 +38,7 @@ export class AuthService {
 
     const createdAt = await this.repository.inUserScope(id, async (tx) => {
       const rows = await tx.$queryRaw<{ created_at: Date }[]>`
-        select created_at from users where id = ${id}::uuid
+        select created_at from public.users where id = ${id}::uuid
       `;
       return rows[0]!.created_at;
     });
@@ -84,10 +84,10 @@ export class AuthService {
 
     return this.repository.inUserScope(session.userId, async (tx) => {
       await tx.$executeRaw`
-        update refresh_tokens set revoked_at = now() where id = ${session.id}::uuid
+        update public.refresh_tokens set revoked_at = now() where id = ${session.id}::uuid
       `;
       const rows = await tx.$queryRaw<{ email: string }[]>`
-        select email from users where id = ${session.userId}::uuid
+        select email from public.users where id = ${session.userId}::uuid
       `;
       return this.createSession(tx, session.userId, rows[0]!.email);
     });
@@ -103,7 +103,7 @@ export class AuthService {
 
     await this.repository.inUserScope(session.userId, async (tx) => {
       await tx.$executeRaw`
-        update refresh_tokens set revoked_at = now()
+        update public.refresh_tokens set revoked_at = now()
         where id = ${session.id}::uuid and revoked_at is null
       `;
     });
@@ -118,7 +118,7 @@ export class AuthService {
     const expiresAt = this.tokens.refreshExpiryFrom(this.clock.now());
 
     await tx.$executeRaw`
-      insert into refresh_tokens (user_id, token_hash, expires_at)
+      insert into public.refresh_tokens (user_id, token_hash, expires_at)
       values (${userId}::uuid, ${hash}, ${expiresAt})
     `;
 

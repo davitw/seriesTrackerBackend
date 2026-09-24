@@ -78,7 +78,7 @@ export async function cleanupUsers(prisma: PrismaClient, userIds: string[]): Pro
   for (const id of userIds) {
     try {
       await withUserScope(prisma, id, async (tx) => {
-        await tx.$executeRawUnsafe(`delete from users where id = $1::uuid`, id);
+        await tx.$executeRawUnsafe(`delete from public.users where id = $1::uuid`, id);
       });
     } catch {
       // conta já removida

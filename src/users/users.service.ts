@@ -16,7 +16,7 @@ export class UsersService {
   async getProfile(): Promise<UserProfile> {
     const rows = await this.scope.client.$queryRaw<
       { id: string; email: string; created_at: Date }[]
-    >`select id, email, created_at from users where id = ${this.scope.userId}::uuid`;
+    >`select id, email, created_at from public.users where id = ${this.scope.userId}::uuid`;
 
     const row = rows[0];
     // Credencial válida de uma conta que já não existe: trata como sessão inválida.
@@ -34,7 +34,7 @@ export class UsersService {
    */
   async deleteAccount(): Promise<void> {
     await this.scope.client.$executeRaw`
-      delete from users where id = ${this.scope.userId}::uuid
+      delete from public.users where id = ${this.scope.userId}::uuid
     `;
   }
 }

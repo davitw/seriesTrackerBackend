@@ -42,7 +42,7 @@ describe('POST/GET/DELETE /v1/series', () => {
   afterAll(async () => {
     await cleanupUsers(prisma, created);
     // O catálogo é global; limpar evita que uma execução interfira na seguinte.
-    await admin.$executeRawUnsafe(`delete from series where external_id in (1396, 60059)`);
+    await admin.$executeRawUnsafe(`delete from public.series where external_id in (1396, 60059)`);
     await admin.$disconnect();
     await prisma.$disconnect();
     await app.close();
@@ -70,11 +70,11 @@ describe('POST/GET/DELETE /v1/series', () => {
     expect(response.body.alreadyInProfile).toBe(true);
 
     const rows = await admin.$queryRawUnsafe<{ count: bigint }[]>(
-      `select count(*)::bigint as count from user_series us
-         join series s on s.id = us.series_id
+      `select count(*)::bigint as count from public.user_series us
+         join public.series s on s.id = us.series_id
         where s.external_id = 1396
-          and us.user_id = (select id from users where email = (
-            select email from users order by created_at limit 1))`,
+          and us.user_id = (select id from public.users where email = (
+            select email from public.users order by created_at limit 1))`,
     );
     expect(Number(rows[0]?.count ?? 0n)).toBeLessThanOrEqual(1);
   });

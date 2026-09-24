@@ -56,7 +56,7 @@ describe('Perfil de séries (integração)', () => {
 
   afterAll(async () => {
     await cleanupUsers(prisma, created);
-    await admin.$executeRawUnsafe(`delete from series where external_id = 1396`);
+    await admin.$executeRawUnsafe(`delete from public.series where external_id = 1396`);
     await admin.$disconnect();
     await prisma.$disconnect();
     await app.close();
@@ -68,7 +68,7 @@ describe('Perfil de séries (integração)', () => {
 
     const rows = await withUserScope(prisma, userA.id, (tx) =>
       tx.$queryRaw<{ count: bigint }[]>`
-        select count(*)::bigint as count from user_series where user_id = ${userA.id}::uuid
+        select count(*)::bigint as count from public.user_series where user_id = ${userA.id}::uuid
       `,
     );
     expect(Number(rows[0]?.count)).toBe(1);
@@ -85,14 +85,14 @@ describe('Perfil de séries (integração)', () => {
 
     const episodes = await withUserScope(prisma, userA.id, (tx) =>
       tx.$queryRaw<{ id: string }[]>`
-        select id from episodes where series_id = ${series.id}::uuid limit 1
+        select id from public.episodes where series_id = ${series.id}::uuid limit 1
       `,
     );
     const episodeId = episodes[0]!.id;
 
     await withUserScope(prisma, userA.id, (tx) =>
       tx.$executeRaw`
-        insert into user_episode_progress (user_id, episode_id, watched_at)
+        insert into public.user_episode_progress (user_id, episode_id, watched_at)
         values (${userA.id}::uuid, ${episodeId}::uuid, now())
       `,
     );
@@ -106,7 +106,7 @@ describe('Perfil de séries (integração)', () => {
     // linhas e o teste passaria sem provar que o descarte aconteceu.
     const rows = await admin.$queryRaw<{ count: bigint }[]>`
       select count(*)::bigint as count
-      from user_episode_progress
+      from public.user_episode_progress
       where user_id = ${userA.id}::uuid and episode_id = ${episodeId}::uuid
     `;
     expect(Number(rows[0]?.count)).toBe(0);

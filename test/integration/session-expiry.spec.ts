@@ -47,7 +47,7 @@ describe('Expiração da sessão por inatividade', () => {
 
   const expiryOf = async (refreshToken: string): Promise<Date> => {
     const rows = await admin.$queryRaw<{ expires_at: Date }[]>`
-      select expires_at from refresh_tokens where token_hash = ${hashOf(refreshToken)}
+      select expires_at from public.refresh_tokens where token_hash = ${hashOf(refreshToken)}
     `;
     return rows[0]!.expires_at;
   };
@@ -75,7 +75,7 @@ describe('Expiração da sessão por inatividade', () => {
   it('recusa a renovação quando a validade venceu', async () => {
     const vencido = await login();
     await admin.$executeRaw`
-      update refresh_tokens
+      update public.refresh_tokens
       set expires_at = now() - interval '1 day'
       where token_hash = ${hashOf(vencido)}
     `;

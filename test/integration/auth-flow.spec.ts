@@ -80,7 +80,7 @@ describe('Fluxo de autenticação', () => {
     const userId = payload.sub;
 
     const rows = await withUserScope(prisma, userId, (tx) =>
-      tx.$queryRaw<{ count: bigint }[]>`select count(*)::bigint as count from refresh_tokens`,
+      tx.$queryRaw<{ count: bigint }[]>`select count(*)::bigint as count from public.refresh_tokens`,
     );
     expect(Number(rows[0]?.count)).toBeGreaterThan(0);
   });
@@ -115,7 +115,7 @@ describe('Fluxo de autenticação', () => {
     // acidente, sem provar que a exclusão em cascata aconteceu.
     const admin = adminPrismaClient();
     const rows = await admin.$queryRaw<{ count: bigint }[]>`
-      select count(*)::bigint as count from refresh_tokens where user_id = ${userId}::uuid
+      select count(*)::bigint as count from public.refresh_tokens where user_id = ${userId}::uuid
     `;
     await admin.$disconnect();
     expect(Number(rows[0]?.count ?? 0n)).toBe(0);

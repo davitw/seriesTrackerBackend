@@ -30,7 +30,7 @@ export class TrackingRepository {
     watchedAt: Date,
   ): Promise<boolean> {
     const inserted = await tx.$queryRaw<{ id: string }[]>`
-      insert into user_episode_progress (user_id, episode_id, watched_at)
+      insert into public.user_episode_progress (user_id, episode_id, watched_at)
       values (${userId}::uuid, ${episodeId}::uuid, ${watchedAt})
       on conflict (user_id, episode_id) do nothing
       returning id

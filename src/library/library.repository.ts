@@ -17,7 +17,7 @@ export class LibraryRepository {
     seriesId: string,
   ): Promise<boolean> {
     const created = await tx.$queryRaw<{ id: string }[]>`
-      insert into user_series (user_id, series_id)
+      insert into public.user_series (user_id, series_id)
       values (${userId}::uuid, ${seriesId}::uuid)
       on conflict (user_id, series_id) do nothing
       returning id
@@ -70,9 +70,9 @@ export class LibraryRepository {
     if (removed.count === 0) return false;
 
     await tx.$executeRaw`
-      delete from user_episode_progress
+      delete from public.user_episode_progress
       where user_id = ${userId}::uuid
-        and episode_id in (select id from episodes where series_id = ${seriesId}::uuid)
+        and episode_id in (select id from public.episodes where series_id = ${seriesId}::uuid)
     `;
     return true;
   }
@@ -85,7 +85,7 @@ export class LibraryRepository {
     at: Date,
   ): Promise<void> {
     await tx.$executeRaw`
-      update user_series
+      update public.user_series
          set last_watched_at = ${at}
        where user_id = ${userId}::uuid
          and series_id = ${seriesId}::uuid

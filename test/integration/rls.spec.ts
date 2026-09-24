@@ -71,7 +71,7 @@ describe('RLS: o banco garante o isolamento entre usuários (FR-016, SC-006)', (
 
   it('com escopo, a pessoa enxerga apenas a própria conta', async () => {
     const rows = await withUserScope(prisma, userA, (tx) =>
-      tx.$queryRaw<{ id: string }[]>`select id from users`,
+      tx.$queryRaw<{ id: string }[]>`select id from public.users`,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]?.id).toBe(userA);
@@ -79,19 +79,19 @@ describe('RLS: o banco garante o isolamento entre usuários (FR-016, SC-006)', (
 
   it('a pessoa B não enxerga a conta da pessoa A', async () => {
     const rows = await withUserScope(prisma, userB, (tx) =>
-      tx.$queryRaw<{ id: string }[]>`select id from users`,
+      tx.$queryRaw<{ id: string }[]>`select id from public.users`,
     );
     expect(rows.map((row) => row.id)).not.toContain(userA);
   });
 
   it('a pessoa B não consegue apagar a conta da pessoa A', async () => {
     const affected = await withUserScope(prisma, userB, (tx) =>
-      tx.$executeRawUnsafe(`delete from users where id = $1::uuid`, userA),
+      tx.$executeRawUnsafe(`delete from public.users where id = $1::uuid`, userA),
     );
     expect(affected).toBe(0);
 
     const [stillThere] = await withUserScope(prisma, userA, (tx) =>
-      tx.$queryRaw<{ count: bigint }[]>`select count(*)::bigint as count from users`,
+      tx.$queryRaw<{ count: bigint }[]>`select count(*)::bigint as count from public.users`,
     );
     expect(Number(stillThere?.count)).toBe(1);
   });
@@ -102,7 +102,7 @@ describe('RLS: o banco garante o isolamento entre usuários (FR-016, SC-006)', (
     });
 
     const [row] = await prisma.$queryRaw<{ count: bigint }[]>`
-      select count(*)::bigint as count from users
+      select count(*)::bigint as count from public.users
     `;
     expect(Number(row?.count)).toBe(0);
   });

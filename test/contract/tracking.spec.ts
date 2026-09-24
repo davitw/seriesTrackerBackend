@@ -69,7 +69,7 @@ describe('PUT/DELETE /v1/series/:seriesId/episodes/:episodeId/watched', () => {
 
   afterAll(async () => {
     await cleanupUsers(prisma, created);
-    await admin.$executeRawUnsafe(`delete from series where external_id = 1396`);
+    await admin.$executeRawUnsafe(`delete from public.series where external_id = 1396`);
     await admin.$disconnect();
     await prisma.$disconnect();
     await app.close();

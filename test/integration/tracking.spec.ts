@@ -62,7 +62,7 @@ describe('Marcação de episódios (integração)', () => {
 
   afterAll(async () => {
     await cleanupUsers(prisma, created);
-    await admin.$executeRawUnsafe(`delete from series where external_id = 1396`);
+    await admin.$executeRawUnsafe(`delete from public.series where external_id = 1396`);
     await admin.$disconnect();
     await prisma.$disconnect();
     await app.close();
@@ -82,7 +82,7 @@ describe('Marcação de episódios (integração)', () => {
       .expect(200);
 
     const rows = await admin.$queryRaw<{ count: bigint }[]>`
-      select count(*)::bigint as count from user_episode_progress
+      select count(*)::bigint as count from public.user_episode_progress
       where user_id = ${userA.id}::uuid and episode_id = ${id}::uuid
     `;
     expect(Number(rows[0]?.count)).toBe(1);
@@ -100,14 +100,14 @@ describe('Marcação de episódios (integração)', () => {
 
   it('o recente avança com a marcação e nunca retrocede', async () => {
     const before = await admin.$queryRaw<{ last_watched_at: Date | null }[]>`
-      select last_watched_at from user_series
+      select last_watched_at from public.user_series
       where user_id = ${userA.id}::uuid and series_id = ${seriesId}::uuid
     `;
 
     // Um instante à frente força o caso de retrocesso se a implementação sobrescrever.
     const future = new Date(Date.now() + 3_600_000);
     await admin.$executeRaw`
-      update user_series set last_watched_at = ${future}
+      update public.user_series set last_watched_at = ${future}
       where user_id = ${userA.id}::uuid and series_id = ${seriesId}::uuid
     `;
 
@@ -119,7 +119,7 @@ describe('Marcação de episódios (integração)', () => {
       .expect(200);
 
     const after = await admin.$queryRaw<{ last_watched_at: Date }[]>`
-      select last_watched_at from user_series
+      select last_watched_at from public.user_series
       where user_id = ${userA.id}::uuid and series_id = ${seriesId}::uuid
     `;
 
@@ -140,7 +140,7 @@ describe('Marcação de episódios (integração)', () => {
     expect(response.body.error.code).toBe('SERIES_NOT_IN_PROFILE');
 
     const rows = await admin.$queryRaw<{ count: bigint }[]>`
-      select count(*)::bigint as count from user_episode_progress
+      select count(*)::bigint as count from public.user_episode_progress
       where episode_id = ${id}::uuid
     `;
     expect(Number(rows[0]?.count)).toBe(0);

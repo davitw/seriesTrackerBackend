@@ -54,34 +54,34 @@ describe('Escala da leitura (SC-009, escopo reduzido)', () => {
 
     // Volume montado direto por SQL: passar pela API levaria minutos.
     await admin.$executeRawUnsafe(`
-      insert into series (external_id, title, synced_at)
+      insert into public.series (external_id, title, synced_at)
       select ${EXTERNAL_ID_BASE} + i, 'Série de carga ' || i, now()
       from generate_series(1, ${SERIES_COUNT}) as i
     `);
     await admin.$executeRawUnsafe(`
-      insert into seasons (series_id, season_number, name)
-      select s.id, 1, 'Temporada 1' from series s where s.external_id > ${EXTERNAL_ID_BASE}
+      insert into public.seasons (series_id, season_number, name)
+      select s.id, 1, 'Temporada 1' from public.series s where s.external_id > ${EXTERNAL_ID_BASE}
     `);
     await admin.$executeRawUnsafe(`
-      insert into episodes (series_id, season_id, season_number, episode_number, air_date)
+      insert into public.episodes (series_id, season_id, season_number, episode_number, air_date)
       select se.series_id, se.id, 1, g, current_date - 1
-      from seasons se cross join generate_series(1, ${EPISODES_PER_SERIES}) as g
-      where se.series_id in (select id from series where external_id > ${EXTERNAL_ID_BASE})
+      from public.seasons se cross join generate_series(1, ${EPISODES_PER_SERIES}) as g
+      where se.series_id in (select id from public.series where external_id > ${EXTERNAL_ID_BASE})
     `);
     await admin.$executeRawUnsafe(`
-      insert into user_series (user_id, series_id, last_watched_at)
-      select '${userId}'::uuid, id, now() from series where external_id > ${EXTERNAL_ID_BASE}
+      insert into public.user_series (user_id, series_id, last_watched_at)
+      select '${userId}'::uuid, id, now() from public.series where external_id > ${EXTERNAL_ID_BASE}
     `);
 
     const rows = await admin.$queryRawUnsafe<{ id: string }[]>(
-      `select id from series where external_id = ${EXTERNAL_ID_BASE + 1}`,
+      `select id from public.series where external_id = ${EXTERNAL_ID_BASE + 1}`,
     );
     seriesId = rows[0]!.id;
   });
 
   afterAll(async () => {
     await cleanupUsers(prisma, created);
-    await admin.$executeRawUnsafe(`delete from series where external_id > ${EXTERNAL_ID_BASE}`);
+    await admin.$executeRawUnsafe(`delete from public.series where external_id > ${EXTERNAL_ID_BASE}`);
     await admin.$disconnect();
     await prisma.$disconnect();
     await app.close();

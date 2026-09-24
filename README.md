@@ -24,6 +24,46 @@ npx prisma migrate deploy     # aplica migrações, RLS e funções de autentica
 npm run start:dev             # API em http://localhost:3000, OpenAPI em /docs
 ```
 
+## Subir em banco gerenciado (Supabase)
+
+O desenho depende de **duas roles diferentes**, e isso não é opcional:
+
+- as **migrações** usam uma conexão privilegiada — criam tabelas, habilitam RLS e criam as
+  funções `SECURITY DEFINER`;
+- a **aplicação** usa uma role sem privilégio algum. No Supabase, a role `postgres` tem
+  `BYPASSRLS`: usá-la na aplicação faria a Row Level Security ser **integralmente ignorada**
+  (mesmo com `FORCE`), e o isolamento entre usuários voltaria a depender só do código.
+
+### 1. Escolher a conexão
+
+Use **Direct connection** ou **Session pooler** — ambas na porta **5432**.
+O **Transaction pooler (porta 6543) não serve**: o `SET LOCAL app.current_user_id` que
+sustenta a RLS se perderia no meio da requisição, sem erro visível.
+
+### 2. Criar a role da aplicação
+
+```bash
+psql "$MIGRATE_DATABASE_URL" \
+  -c "create role series_tracker_app login password '<senha-forte>' nosuperuser nobypassrls nocreatedb;"
+```
+
+### 3. Apontar as variáveis
+
+- `MIGRATE_DATABASE_URL` — a conexão privilegiada (`postgres.<ref>@…pooler.supabase.com:5432/postgres`)
+- `DATABASE_URL` — a mesma conexão, com o usuário `series_tracker_app.<ref>` e a senha da role
+
+### 4. Aplicar e verificar
+
+```bash
+npx prisma migrate deploy                    # usa MIGRATE_DATABASE_URL
+psql "$MIGRATE_DATABASE_URL" -f scripts/setup-db.sql
+node scripts/verify-cloud.mjs                # confirma RLS, escopo e pooler
+```
+
+`verify-cloud.mjs` cria uma conta de teste, confirma que a role não bypassa a RLS, que sem
+escopo nenhuma linha é visível, que o `SET LOCAL` **sobrevive ao pooler** e que um escopo
+diferente não enxerga a conta — e remove a conta no fim.
+
 ## Testes
 
 ```bash
