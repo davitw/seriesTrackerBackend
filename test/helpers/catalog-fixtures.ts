@@ -30,6 +30,11 @@ export function fixtureSeason(seasonNumber: number): unknown {
   return fixture(`season-${seasonNumber}.json`);
 }
 
+/** Lista de destaques do provedor (`popular`, `on_the_air`, `top_rated`). */
+export function fixtureList(key: string): unknown {
+  return fixture(`list-${key}.json`);
+}
+
 export class FixtureHttpClient {
   readonly calls: CatalogRequest[] = [];
   private failEverything = false;
@@ -51,6 +56,10 @@ export class FixtureHttpClient {
       const matches = results.results.filter((item) => query.includes('breaking') && item.name === 'Breaking Bad');
       return Promise.resolve({ ...results, results: matches } as T);
     }
+
+    if (path === '/tv/popular') return Promise.resolve(fixtureList('popular') as T);
+    if (path === '/tv/on_the_air') return Promise.resolve(fixtureList('on_the_air') as T);
+    if (path === '/tv/top_rated') return Promise.resolve(fixtureList('top_rated') as T);
 
     if (path === '/tv/1396') return Promise.resolve(fixtureSeries(1396) as T);
     if (path === '/tv/1396/season/1') return Promise.resolve(fixtureSeason(1) as T);

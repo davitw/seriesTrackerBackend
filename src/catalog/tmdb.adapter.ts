@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { CATALOG_HTTP_CLIENT, CatalogHttpClient } from './catalog.tokens';
 import {
+  listResponseSchema,
   seasonDetailSchema,
   searchResponseSchema,
   seriesDetailSchema,
@@ -13,6 +14,26 @@ export interface CatalogSeriesSummary {
   overview: string | null;
   posterPath: string | null;
 }
+
+/**
+ * Mapeamento único do item do provedor para o resumo interno.
+ *
+ * Busca e listas compartilham a mesma forma de item (R-005), então compartilham também a
+ * tradução — dois caminhos de mapeamento para o mesmo dado é como as representações divergem.
+ */
+const toSummary = (item: {
+  id: number;
+  name: string;
+  first_air_date?: string | null;
+  overview?: string | null;
+  poster_path?: string | null;
+}): CatalogSeriesSummary => ({
+  externalId: item.id,
+  title: item.name,
+  firstAirDate: item.first_air_date ?? null,
+  overview: item.overview ?? null,
+  posterPath: item.poster_path ?? null,
+});
 
 export interface CatalogEpisode {
   seasonNumber: number;
@@ -72,13 +93,26 @@ export class TmdbAdapter {
       throw new CatalogPayloadError(parsed.error.issues.map((i) => i.path.join('.')).join(', '));
     }
 
-    return parsed.data.results.slice(0, limit).map((item) => ({
-      externalId: item.id,
-      title: item.name,
-      firstAirDate: item.first_air_date ?? null,
-      overview: item.overview ?? null,
-      posterPath: item.poster_path ?? null,
-    }));
+    return parsed.data.results.slice(0, limit).map(toSummary);
+  }
+
+  /**
+   * Lista de destaques do provedor.
+   *
+   * A chave da lista corresponde ao segmento da operação no provedor (`popular` →
+   * `/tv/popular`). É o mesmo conjunto de chaves registrado na migração das listas.
+   */
+  async getList(key: string, limit = 20): Promise<CatalogSeriesSummary[]> {
+    const raw = await this.http.getJson(`/tv/${key}`, { language: 'pt-BR' });
+    const parsed = listResponseSchema.safeParse(raw);
+
+    if (!parsed.success) {
+      throw new CatalogPayloadError(
+        `lista ${key}: ${parsed.error.issues.map((i) => i.path.join('.')).join(', ')}`,
+      );
+    }
+
+    return parsed.data.results.slice(0, limit).map(toSummary);
   }
 
   async getSeriesDetail(externalId: number): Promise<CatalogSeriesDetail> {

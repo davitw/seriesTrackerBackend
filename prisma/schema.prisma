@@ -136,3 +136,40 @@ model UserEpisodeProgress {
   @@index([episodeId])
   @@map("user_episode_progress")
 }
+
+/// Lista de destaques para a home (populares, em exibição, mais bem avaliadas).
+/// Não contém dado de usuário.
+model CatalogList {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String    @unique
+  name      String
+  syncedAt  DateTime? @map("synced_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  items CatalogListItem[]
+
+  @@map("catalog_lists")
+}
+
+/// Item de uma lista de destaques.
+///
+/// AUTOCONTIDO de propósito: não referencia `series`. A tabela `series` guarda apenas
+/// séries completas, e é isso que permite ao `ensureCached` tratar um acerto de cache como
+/// suficiente. Referenciar aqui obrigaria a guardar séries resumidas, quebrando essa
+/// invariante — e adicionar uma série vinda da home daria um perfil sem episódios.
+/// Ver specs/002-home-discovery/research.md R-001.
+model CatalogListItem {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  listId       String    @map("list_id") @db.Uuid
+  externalId   Int       @map("external_id")
+  title        String
+  firstAirDate DateTime? @map("first_air_date") @db.Date
+  posterPath   String?   @map("poster_path")
+  position     Int
+
+  list CatalogList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, externalId])
+  @@index([listId, position])
+  @@map("catalog_list_items")
+}

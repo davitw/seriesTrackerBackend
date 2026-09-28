@@ -7,6 +7,16 @@ import { z } from 'zod';
  * tipo inesperado vira erro explícito, nunca `null` silencioso ou string onde se espera
  * número (Princípio II).
  */
+
+/** Forma do item de série, compartilhada entre a busca e as listas. */
+const seriesItemSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  original_name: z.string().nullish(),
+  first_air_date: z.string().nullish(),
+  overview: z.string().nullish(),
+  poster_path: z.string().nullish(),
+});
 export const searchResponseSchema = z.object({
   results: z.array(
     z.object({
@@ -18,6 +28,17 @@ export const searchResponseSchema = z.object({
       poster_path: z.string().nullish(),
     }),
   ),
+});
+
+/**
+ * Lista de destaques (populares, em exibição, mais bem avaliadas).
+ *
+ * O **envelope** tem schema próprio, separado do de busca, para que uma mudança numa operação
+ * não afete a outra em silêncio. A **forma do item** é a mesma, e por isso é declarada uma vez
+ * em `seriesItemSchema` (R-005).
+ */
+export const listResponseSchema = z.object({
+  results: z.array(seriesItemSchema),
 });
 
 export const seriesDetailSchema = z.object({

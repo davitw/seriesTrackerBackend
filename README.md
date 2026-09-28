@@ -1,8 +1,8 @@
 # SeriesTracker — Backend
 
 Serviço HTTP que alimenta o aplicativo SeriesTracker: autenticação por e-mail e senha com JWT,
-busca de séries em catálogo externo, perfil de séries do usuário, marcação de episódios assistidos
-e progresso por temporada.
+busca de séries em catálogo externo, listas de destaques para a home, perfil de séries do usuário,
+marcação de episódios assistidos e progresso por temporada.
 
 Stack: **Node.js + TypeScript + NestJS**, **PostgreSQL** (Supabase), **Prisma**, **JWT** próprio
 (access de curta duração + refresh revogável com rotação).
@@ -111,6 +111,23 @@ banco, local inclusive.
 
 Cada endpoint documenta o corpo esperado, os parâmetros, o formato da resposta e os códigos de
 erro — inclusive os de domínio, como `SERIES_NOT_IN_PROFILE` e `EPISODE_NOT_AIRED`.
+
+## Listas de destaques (home)
+
+`GET /v1/catalog/lists` devolve as três listas que preenchem a home — populares, em exibição e mais
+bem avaliadas — para que quem acabou de se cadastrar não encontre uma tela vazia.
+
+O conteúdo é **guardado localmente** e servido a partir do cache. Duas consequências práticas:
+
+- **Com o provedor de catálogo fora do ar, a home continua funcionando** com o último conteúdo
+  obtido. A resposta é `200`, não um erro.
+- **`503 CATALOG_UNAVAILABLE` só aparece quando não há conteúdo algum guardado E o provedor falhou.**
+  Uma lista genuinamente sem destaques é `200` com `items: []` — as duas situações significam coisas
+  diferentes e a API as distingue.
+
+Na **primeira execução** (banco recém-migrado, nenhuma lista obtida ainda), a primeira abertura da
+home busca no provedor e guarda o resultado. Sem isso haveria um vazio entre a migração e o job da
+madrugada. A atualização periódica roda junto da sincronização de catálogo já existente.
 
 ## Subir em banco gerenciado (Supabase)
 

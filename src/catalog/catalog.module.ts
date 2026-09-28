@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { CatalogController } from './catalog.controller';
+import { CatalogListsRepository } from './catalog.lists.repository';
+import { CatalogListsService } from './catalog.lists.service';
 import { CatalogRepository } from './catalog.repository';
 import { CatalogService } from './catalog.service';
 import { CATALOG_HTTP_CLIENT } from './catalog.tokens';
@@ -15,9 +17,11 @@ import { TmdbHttpClient } from './tmdb.http-client';
     TmdbAdapter,
     CatalogRepository,
     CatalogService,
+    CatalogListsRepository,
+    CatalogListsService,
     CatalogSyncJob,
     { provide: CATALOG_HTTP_CLIENT, useClass: TmdbHttpClient },
   ],
-  exports: [CatalogService, CatalogRepository],
+  exports: [CatalogService, CatalogRepository, CatalogListsRepository, CatalogListsService],
 })
 export class CatalogModule {}

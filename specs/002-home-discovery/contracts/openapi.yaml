@@ -1,0 +1,144 @@
+openapi: 3.0.3
+info:
+  title: SeriesTracker — Conteúdo de Descoberta na Home
+  version: 1.0.0
+  description: >
+    Recorte do contrato referente à feature 002. O contrato completo da API vive em
+    `specs/001-series-tracking/contracts/openapi.yaml`, e é ele que o teste de paridade lê —
+    a implementação MUST propagar este endpoint para lá, senão o contrato fica desatualizado
+    (portão 5 da constituição).
+
+    Regras herdadas: todas as operações exigem `Authorization: Bearer <accessToken>`; erros
+    usam código estável em `error.code`; datas de calendário são `YYYY-MM-DD` ou `null`.
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local
+
+tags:
+  - name: catalog
+
+paths:
+  /v1/catalog/lists:
+    get:
+      tags: [catalog]
+      summary: Listas de séries em destaque
+      description: >
+        Alimenta a home. Devolve as três listas de uma vez — a tela precisa de todas, e elas
+        vêm do cache local, sem paginação.
+
+        **Degradação (FR-005, FR-006)**: com o provedor externo indisponível, as listas
+        continuam sendo servidas a partir do último conteúdo obtido — e a resposta é `200`.
+        `503` acontece **apenas** quando não há conteúdo algum guardado e o provedor falhou.
+        Uma lista genuinamente sem itens é `200` com `items: []`, nunca `503`: as duas
+        situações significam coisas diferentes para quem usa.
+      responses:
+        '200':
+          description: Listas de destaques (podem vir vazias, se o provedor não tiver destaques)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoverResponse'
+        '401':
+          description: Sessão ausente, inválida ou expirada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: UNAUTHENTICATED
+                  message: Sessão inválida ou expirada. Entre novamente.
+        '503':
+          description: >
+            Catálogo indisponível **e** nenhuma lista foi obtida antes. Não confundir com
+            lista vazia.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: CATALOG_UNAVAILABLE
+                  message: Os destaques estão indisponíveis no momento.
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Código estável (ver contracts/errors.md na feature 001)
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    DiscoverResponse:
+      type: object
+      required: [lists]
+      properties:
+        lists:
+          type: array
+          description: >
+            As listas de destaque, cada uma identificada. A ordem das listas é a de exibição
+            na home; a ordem **dentro** de cada lista é a do provedor, preservada.
+          items:
+            $ref: '#/components/schemas/CatalogList'
+
+    CatalogList:
+      type: object
+      required: [key, name, items]
+      properties:
+        key:
+          type: string
+          description: Identificador estável da lista
+          enum: [popular, on_the_air, top_rated]
+          example: popular
+        name:
+          type: string
+          description: Rótulo legível, pronto para exibição
+          example: Populares
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Quando o conteúdo foi obtido do provedor pela última vez. `null` só aparece se a
+            lista nunca foi sincronizada — caso em que a resposta foi buscada ao vivo.
+          example: '2026-09-28T06:00:00.000Z'
+        items:
+          type: array
+          description: Pode ser vazia — ausência de destaques não é erro.
+          items:
+            $ref: '#/components/schemas/CatalogListItem'
+
+    CatalogListItem:
+      type: object
+      required: [externalId, title]
+      properties:
+        externalId:
+          type: integer
+          description: >
+            Identificador no catálogo externo. É o valor aceito em `POST /v1/series` —
+            adicionar a partir daqui resulta em episódios disponíveis (FR-008).
+          example: 1396
+        title:
+          type: string
+          example: Breaking Bad
+        firstAirDate:
+          type: string
+          format: date
+          nullable: true
+          description: Data de estreia, para distinguir séries homônimas
+          example: '2008-01-20'
+        posterPath:
+          type: string
+          nullable: true

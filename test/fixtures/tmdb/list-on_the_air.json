@@ -1,0 +1,23 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "id": 94997,
+      "name": "House of the Dragon",
+      "original_name": "House of the Dragon",
+      "first_air_date": "2022-08-21",
+      "overview": "A casa Targaryen em seu auge.",
+      "poster_path": "/z2yahl2uefxDCl0nogcRBstwruJ.jpg"
+    },
+    {
+      "id": 136315,
+      "name": "The Bear",
+      "original_name": "The Bear",
+      "first_air_date": "2022-06-23",
+      "overview": "Um chef assume a lanchonete da família.",
+      "poster_path": "/zPyOyBVXDJ9q8l1lQ3MhFLp3lZn.jpg"
+    }
+  ],
+  "total_pages": 1,
+  "total_results": 2
+}

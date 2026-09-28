@@ -264,6 +264,39 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /v1/catalog/lists:
+    get:
+      tags: [catalog]
+      summary: Listas de séries em destaque
+      description: >
+        Alimenta a home. Devolve as três listas de uma vez — a tela precisa de todas, e elas
+        vêm do cache local, sem paginação.
+
+        **Degradação**: com o provedor externo indisponível, as listas continuam sendo servidas
+        a partir do último conteúdo obtido, e a resposta é `200`. `503` acontece **apenas**
+        quando não há conteúdo algum guardado e o provedor falhou. Uma lista genuinamente sem
+        itens é `200` com `items: []`, nunca `503` — as duas situações significam coisas
+        diferentes para quem usa.
+      responses:
+        '200':
+          description: Listas de destaques (podem vir vazias)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoverResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Catálogo indisponível **e** nenhuma lista foi obtida antes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: CATALOG_UNAVAILABLE
+                  message: Os destaques estão indisponíveis no momento.
+
   /v1/series:
     get:
       tags: [library]
@@ -549,6 +582,55 @@ components:
           description: Ano/título de estreia, usado para desambiguar homônimas
         overview:
           type: string
+          nullable: true
+        posterPath:
+          type: string
+          nullable: true
+
+    DiscoverResponse:
+      type: object
+      required: [lists]
+      properties:
+        lists:
+          type: array
+          description: As listas de destaque, cada uma identificada
+          items:
+            $ref: '#/components/schemas/CatalogList'
+
+    CatalogList:
+      type: object
+      required: [key, name, items]
+      properties:
+        key:
+          type: string
+          enum: [popular, on_the_air, top_rated]
+          description: Identificador estável da lista
+        name:
+          type: string
+          description: Rótulo legível, pronto para exibição
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Quando o conteúdo foi obtido do provedor pela última vez
+        items:
+          type: array
+          description: Pode ser vazia — ausência de destaques não é erro
+          items:
+            $ref: '#/components/schemas/CatalogListItem'
+
+    CatalogListItem:
+      type: object
+      required: [externalId, title]
+      properties:
+        externalId:
+          type: integer
+          description: Identificador no catálogo externo — o valor aceito em POST /v1/series
+        title:
+          type: string
+        firstAirDate:
+          type: string
+          format: date
           nullable: true
         posterPath:
           type: string

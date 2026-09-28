@@ -26,6 +26,12 @@ grant select, insert, update, delete on series to :"app_role";
 grant select, insert, update, delete on seasons to :"app_role";
 grant select, insert, update, delete on episodes to :"app_role";
 
+-- Listas de destaques da home. Tabelas novas precisam ser listadas aqui: o acesso da role
+-- vem de concessão nomeada, e os privilégios PADRÃO do schema foram revogados de anon e
+-- authenticated pela migração 20260924150000 — o que as mantém fora do alcance do PostgREST.
+grant select, insert, update, delete on catalog_lists to :"app_role";
+grant select, insert, update, delete on catalog_list_items to :"app_role";
+
 -- Funções de escopo e de autenticação
 grant execute on function app_current_user_id() to :"app_role";
 grant execute on function app_register_user(uuid, text, text) to :"app_role";
