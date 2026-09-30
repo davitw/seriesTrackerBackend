@@ -30,13 +30,6 @@ export const searchResponseSchema = z.object({
   ),
 });
 
-/**
- * Lista de destaques (populares, em exibição, mais bem avaliadas).
- *
- * O **envelope** tem schema próprio, separado do de busca, para que uma mudança numa operação
- * não afete a outra em silêncio. A **forma do item** é a mesma, e por isso é declarada uma vez
- * em `seriesItemSchema` (R-005).
- */
 export const listResponseSchema = z.object({
   results: z.array(seriesItemSchema),
 });
